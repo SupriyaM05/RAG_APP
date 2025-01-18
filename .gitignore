@@ -1,0 +1,3 @@
+Rag_chatbot/.env
+Rag_chatbot/embeddings/vector_store/index.pkl
+Rag_chatbot/embeddings/vector_store/index.faiss
