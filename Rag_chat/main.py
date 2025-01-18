@@ -41,8 +41,3 @@ with st.sidebar:
                 st.success('Vector Store saved successfully for thr pdf')
 
 st.divider()
-
-
-
-
-
