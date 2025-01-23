@@ -1,43 +1,108 @@
-import os
-import PyPDF2
 import streamlit as st
-from google.generativeai import GenerativeModel
-from langchain_google_genai.embeddings import GoogleGenerativeAIEmbeddings
-from langchain.text_splitter import TextSplitter, CharacterTextSplitter
-from dotenv import load_dotenv
-from langchain_community.vectorstores import FAISS
+from streamlit_option_menu import option_menu
+import constants
+import embeddings, chatbot, login, register, user_settings
+from sqlite_db import SQLite
+import time
 
-ROOT_PATH= os.path.abspath(os.path.dirname(__file__))
-EMBEDDINS_PATH= os.path.join(ROOT_PATH, 'embeddings')
+st.set_page_config('Chatbot', layout='wide')
 
-load_dotenv()
+SQLiteDB = SQLite('user_db.sqlite3')
 
-embeddings_model = GoogleGenerativeAIEmbeddings(model= 'models/embedding-001', google_api_key= os.getenv('GOOGLE_API_KEY'))
+## declaring session state parameters
+if "username" not in st.session_state:
+    st.session_state.username = ""
+if "role" not in st.session_state:
+    st.session_state.role = ""
+if "login_status" not in st.session_state:
+    st.session_state.login_status = False
+if "user_status" not in st.session_state:
+    st.session_state.user_status = False
+if "user_register_role" not in st.session_state:
+    st.session_state.user_register_role = ""
 
-st.set_page_config('RAG based Chatbot Application', layout='wide')
-st.title('RAG based Chatbot Application')
+users = SQLiteDB.fetch_users()
+
+if users is not None:
+    st.session_state.user_status = True
+else:
+    admin_user = constants.AdminUserParameters()
+    SQLiteDB.create_user(admin_user.username, admin_user.password, admin_user.email, admin_user.role)
+
+def get_options():
+    if st.session_state.user_status and st.session_state.user_register_role == 'admin':
+        options = ['Login', 'Upload Documents', 'Chatbot', 'Settings']
+        icons = ['person-circle', 'database', 'robot', 'person-lines-fill']
+    else:
+        options = ['Login', 'Upload Documents', 'Chatbot', 'Settings', 'Register']
+        icons = ['person-circle', 'database', 'robot', 'person-lines-fill', 'person-fill-add']
+    return options, icons
+
+def change_states():
+    placeholder = st.empty()
+    placeholder.info(f"User - {st.session_state.username} Logged out")
+    time.sleep(5)
+    placeholder.empty()
+    st.session_state.login_status = False
+    st.session_state.role = ""
+    st.session_state.username = ""
+    st.session_state.text_username = ""
+    st.session_state.text_role = ""
 
 with st.sidebar:
-    file_uploader = st.file_uploader(label='Upload pdf documents', accept_multiple_files=True)
-
-    if file_uploader:
-        text= ''
-        for _file in file_uploader:
-            file_name = _file.name
-            reader= PyPDF2.PdfReader(_file)
-            pages=reader.pages
+    options, icons = get_options()
+    option_selected = option_menu(
+        menu_title=None,
+        options=options,
+        menu_icon=None,
+        icons=icons,
+        styles={
+            'container': {'padding': '0!important', 'background-color':'#34495E'},
+            'icon': {'color': 'white', 'font-size':'20px'},
+            'nav-link':{
+                'font-size': '20px',
+                'font-family': 'system-ui',
+                'text-align': 'left',
+                'margin': '5px',
+                'font-weight': 'bold',
+                '--hover-color': '#E74C3C',
+            },
+            'nav-link-selected': {'background-color':'#28B463'}
             
-            for page in pages:
-                text += page.extract_text()
+        }
+    )
+with st.container():
+    col1,col2= st.columns([0.10, 0.90])
+    with col1:
+        st.image('./images/chatbot1.png', width=100)
+    with col2:
+        st.markdown("<h1 style='text-align: center; color: orange;'>RAG BASED CHATBOT</h1>", unsafe_allow_html= True)
+                    
+    # st.markdown("<h1 style='text-align: center; color: orange;'>RAG BASED CHATBOT</h1>", unsafe_allow_html= True)
+st.markdown('---')
 
-        text_splitter= chunks = CharacterTextSplitter(chunk_size=1000, chunk_overlap=10)
-        chunks= text_splitter.split_text(text)
+if option_selected == 'Login':
+    login.app(SQLiteDB)
 
-        if st.button('Calculate Embeddings'):
-            with st.spinner():
-                vector_store= FAISS.from_texts(chunks, embeddings_model)
-            if os.path.exists(EMBEDDINS_PATH):
-                vector_store.save_local(os.path.join(EMBEDDINS_PATH, 'vector_store'))
-                st.success('Vector Store saved successfully for thr pdf')
+elif option_selected == 'Upload Documents':
+    embeddings.app()
 
-st.divider()
+elif option_selected == 'Chatbot':
+    chatbot.app(SQLiteDB)
+
+elif option_selected == 'Register':
+    register.app(SQLiteDB)
+
+elif option_selected == 'Settings':
+    user_settings.app(SQLiteDB)
+
+if st.session_state.login_status:
+    with st.sidebar:
+        st.markdown('------')
+        col1, _, col2= st.columns([0.3,0.2,0.5])
+        with col1:
+            logout = st.button(label="Logout", on_click=change_states)
+        with col2:
+            with st.container(border=True):
+                st.text_input(label="Username", value=st.session_state.username, key='text_username')
+                st.text_input(label="Role", value=st.session_state.role, key='text_role')
