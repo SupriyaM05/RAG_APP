@@ -2,3 +2,4 @@
 Rag_chat/.env
 Rag_chat/embeddings/vector_store/index.faiss
 Rag_chat/embeddings/vector_store/index.pkl
+Rag_chat/basic.py
